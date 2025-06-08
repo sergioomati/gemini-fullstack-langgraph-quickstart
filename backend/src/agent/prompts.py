@@ -6,91 +6,91 @@ def get_current_date():
     return datetime.now().strftime("%B %d, %Y")
 
 
-query_writer_instructions = """Your goal is to generate sophisticated and diverse web search queries. These queries are intended for an advanced automated web research tool capable of analyzing complex results, following links, and synthesizing information.
+query_writer_instructions = """Seu objetivo é gerar consultas de busca web sofisticadas e diversificadas. Essas consultas são destinadas a uma ferramenta avançada de pesquisa web automatizada capaz de analisar resultados complexos, seguir links e sintetizar informações.
 
-Instructions:
-- Always prefer a single search query, only add another query if the original question requests multiple aspects or elements and one query is not enough.
-- Each query should focus on one specific aspect of the original question.
-- Don't produce more than {number_queries} queries.
-- Queries should be diverse, if the topic is broad, generate more than 1 query.
-- Don't generate multiple similar queries, 1 is enough.
-- Query should ensure that the most current information is gathered. The current date is {current_date}.
+Instruções:
+- Sempre prefira uma única consulta de busca, adicione apenas outra consulta se a pergunta original solicitar múltiplos aspectos ou elementos e uma consulta não for suficiente.
+- Cada consulta deve focar em um aspecto específico da pergunta original.
+- Não produza mais de {number_queries} consultas.
+- As consultas devem ser diversificadas, se o tópico for amplo, gere mais de 1 consulta.
+- Não gere múltiplas consultas similares, 1 é suficiente.
+- A consulta deve garantir que as informações mais atuais sejam coletadas. A data atual é {current_date}.
 
-Format: 
-- Format your response as a JSON object with ALL three of these exact keys:
-   - "rationale": Brief explanation of why these queries are relevant
-   - "query": A list of search queries
+Formato: 
+- Formate sua resposta como um objeto JSON com TODAS essas três chaves exatas:
+   - "rationale": Breve explicação de por que essas consultas são relevantes
+   - "query": Uma lista de consultas de busca
 
-Example:
+Exemplo:
 
-Topic: What revenue grew more last year apple stock or the number of people buying an iphone
+Tópico: Qual receita cresceu mais no ano passado, as ações da Apple ou o número de pessoas comprando um iPhone
 ```json
 {{
-    "rationale": "To answer this comparative growth question accurately, we need specific data points on Apple's stock performance and iPhone sales metrics. These queries target the precise financial information needed: company revenue trends, product-specific unit sales figures, and stock price movement over the same fiscal period for direct comparison.",
-    "query": ["Apple total revenue growth fiscal year 2024", "iPhone unit sales growth fiscal year 2024", "Apple stock price growth fiscal year 2024"],
+    "rationale": "Para responder precisamente a esta questão comparativa de crescimento, precisamos de pontos de dados específicos sobre o desempenho das ações da Apple e métricas de vendas do iPhone. Essas consultas visam as informações financeiras precisas necessárias: tendências de receita da empresa, números de vendas unitárias específicos do produto e movimento do preço das ações no mesmo período fiscal para comparação direta.",
+    "query": ["Crescimento da receita total da Apple ano fiscal 2024", "Crescimento das vendas unitárias do iPhone ano fiscal 2024", "Crescimento do preço das ações da Apple ano fiscal 2024"],
 }}
 ```
 
-Context: {research_topic}"""
+Contexto: {research_topic}"""
 
 
-web_searcher_instructions = """Conduct targeted Google Searches to gather the most recent, credible information on "{research_topic}" and synthesize it into a verifiable text artifact.
+web_searcher_instructions = """Conduza buscas direcionadas no Google para coletar as informações mais recentes e confiáveis sobre "{research_topic}" e sintetize-as em um artefato de texto verificável.
 
-Instructions:
-- Query should ensure that the most current information is gathered. The current date is {current_date}.
-- Conduct multiple, diverse searches to gather comprehensive information.
-- Consolidate key findings while meticulously tracking the source(s) for each specific piece of information.
-- The output should be a well-written summary or report based on your search findings. 
-- Only include the information found in the search results, don't make up any information.
+Instruções:
+- A consulta deve garantir que as informações mais atuais sejam coletadas. A data atual é {current_date}.
+- Conduza múltiplas buscas diversificadas para coletar informações abrangentes.
+- Consolide os principais achados enquanto rastreia meticulosamente a(s) fonte(s) para cada informação específica.
+- O resultado deve ser um resumo ou relatório bem escrito baseado em seus achados de busca.
+- Inclua apenas as informações encontradas nos resultados de busca, não invente nenhuma informação.
 
-Research Topic:
+Tópico de Pesquisa:
 {research_topic}
 """
 
-reflection_instructions = """You are an expert research assistant analyzing summaries about "{research_topic}".
+reflection_instructions = """Você é um assistente de pesquisa especialista analisando resumos sobre "{research_topic}".
 
-Instructions:
-- Identify knowledge gaps or areas that need deeper exploration and generate a follow-up query. (1 or multiple).
-- If provided summaries are sufficient to answer the user's question, don't generate a follow-up query.
-- If there is a knowledge gap, generate a follow-up query that would help expand your understanding.
-- Focus on technical details, implementation specifics, or emerging trends that weren't fully covered.
+Instruções:
+- Identifique lacunas de conhecimento ou áreas que precisam de exploração mais profunda e gere uma consulta de acompanhamento. (1 ou múltiplas).
+- Se os resumos fornecidos forem suficientes para responder à pergunta do usuário, não gere uma consulta de acompanhamento.
+- Se houver uma lacuna de conhecimento, gere uma consulta de acompanhamento que ajudaria a expandir sua compreensão.
+- Foque em detalhes técnicos, especificações de implementação ou tendências emergentes que não foram totalmente cobertas.
 
-Requirements:
-- Ensure the follow-up query is self-contained and includes necessary context for web search.
+Requisitos:
+- Garanta que a consulta de acompanhamento seja autocontida e inclua o contexto necessário para busca web.
 
-Output Format:
-- Format your response as a JSON object with these exact keys:
+Formato de Saída:
+- Formate sua resposta como um objeto JSON com essas chaves exatas:
    - "is_sufficient": true or false
-   - "knowledge_gap": Describe what information is missing or needs clarification
-   - "follow_up_queries": Write a specific question to address this gap
+   - "knowledge_gap": Descreva que informação está faltando ou precisa de esclarecimento
+   - "follow_up_queries": Escreva uma pergunta específica para abordar essa lacuna
 
-Example:
+Exemplo:
 ```json
 {{
     "is_sufficient": true, // or false
-    "knowledge_gap": "The summary lacks information about performance metrics and benchmarks", // "" if is_sufficient is true
-    "follow_up_queries": ["What are typical performance benchmarks and metrics used to evaluate [specific technology]?"] // [] if is_sufficient is true
+    "knowledge_gap": "O resumo carece de informações sobre métricas de desempenho e benchmarks", // "" if is_sufficient is true
+    "follow_up_queries": ["Quais são os benchmarks e métricas de desempenho típicos usados para avaliar [tecnologia específica]?"] // [] if is_sufficient is true
 }}
 ```
 
-Reflect carefully on the Summaries to identify knowledge gaps and produce a follow-up query. Then, produce your output following this JSON format:
+Reflita cuidadosamente sobre os Resumos para identificar lacunas de conhecimento e produzir uma consulta de acompanhamento. Então, produza sua saída seguindo este formato JSON:
 
-Summaries:
+Resumos:
 {summaries}
 """
 
-answer_instructions = """Generate a high-quality answer to the user's question based on the provided summaries.
+answer_instructions = """Gere uma resposta de alta qualidade para a pergunta do usuário baseada nos resumos fornecidos.
 
-Instructions:
-- The current date is {current_date}.
-- You are the final step of a multi-step research process, don't mention that you are the final step. 
-- You have access to all the information gathered from the previous steps.
-- You have access to the user's question.
-- Generate a high-quality answer to the user's question based on the provided summaries and the user's question.
-- you MUST include all the citations from the summaries in the answer correctly.
+Instruções:
+- A data atual é {current_date}.
+- Você é a etapa final de um processo de pesquisa em múltiplas etapas, não mencione que você é a etapa final.
+- Você tem acesso a todas as informações coletadas das etapas anteriores.
+- Você tem acesso à pergunta do usuário.
+- Gere uma resposta de alta qualidade para a pergunta do usuário baseada nos resumos fornecidos e na pergunta do usuário.
+- Você DEVE incluir todas as citações dos resumos na resposta corretamente.
 
-User Context:
+Contexto do Usuário:
 - {research_topic}
 
-Summaries:
+Resumos:
 {summaries}"""

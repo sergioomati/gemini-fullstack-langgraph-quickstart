@@ -5,6 +5,7 @@ import { InputForm } from "@/components/InputForm";
 import { Button } from "@/components/ui/button";
 import { useState, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -106,16 +107,26 @@ const mdComponents = {
     <hr className={cn("border-neutral-600 my-4", className)} {...props} />
   ),
   table: ({ className, children, ...props }: MdComponentProps) => (
-    <div className="my-3 overflow-x-auto">
-      <table className={cn("border-collapse w-full", className)} {...props}>
+    <div className="my-4 overflow-x-auto rounded-lg border border-neutral-600">
+      <table className={cn("border-collapse w-full bg-neutral-800/50", className)} {...props}>
         {children}
       </table>
     </div>
   ),
+  thead: ({ className, children, ...props }: MdComponentProps) => (
+    <thead className={cn("bg-neutral-700", className)} {...props}>
+      {children}
+    </thead>
+  ),
+  tbody: ({ className, children, ...props }: MdComponentProps) => (
+    <tbody className={cn("", className)} {...props}>
+      {children}
+    </tbody>
+  ),
   th: ({ className, children, ...props }: MdComponentProps) => (
     <th
       className={cn(
-        "border border-neutral-600 px-3 py-2 text-left font-bold",
+        "border-r border-neutral-600 px-4 py-3 text-left font-semibold text-neutral-100 last:border-r-0",
         className
       )}
       {...props}
@@ -125,7 +136,7 @@ const mdComponents = {
   ),
   td: ({ className, children, ...props }: MdComponentProps) => (
     <td
-      className={cn("border border-neutral-600 px-3 py-2", className)}
+      className={cn("border-r border-t border-neutral-600 px-4 py-3 text-neutral-200 last:border-r-0", className)}
       {...props}
     >
       {children}
@@ -148,7 +159,7 @@ const HumanMessageBubble: React.FC<HumanMessageBubbleProps> = ({
     <div
       className={`text-white rounded-3xl break-words min-h-7 bg-neutral-700 max-w-[100%] sm:max-w-[90%] px-4 pt-3 rounded-br-lg`}
     >
-      <ReactMarkdown components={mdComponents}>
+      <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]}>
         {typeof message.content === "string"
           ? message.content
           : JSON.stringify(message.content)}
@@ -227,7 +238,7 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
           />
         </div>
       )}
-      <ReactMarkdown components={mdComponents}>
+      <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]}>
         {messageContent}
       </ReactMarkdown>
       <Button
