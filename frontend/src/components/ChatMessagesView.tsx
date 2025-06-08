@@ -1,6 +1,5 @@
 import type React from "react";
 import type { Message } from "@langchain/langgraph-sdk";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Copy, CopyCheck } from "lucide-react";
 import { InputForm } from "@/components/InputForm";
 import { Button } from "@/components/ui/button";
@@ -253,8 +252,11 @@ export function ChatMessagesView({
 
   return (
     <div className="flex flex-col h-full">
-      <ScrollArea className="flex-grow" ref={scrollAreaRef}>
-        <div className="p-4 md:p-6 space-y-2 max-w-4xl mx-auto pt-16">
+      <div 
+        className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-track-neutral-800 scrollbar-thumb-neutral-600" 
+        ref={scrollAreaRef}
+      >
+        <div className="p-4 md:p-6 space-y-2 max-w-4xl mx-auto pt-16 pb-4">
           {messages.map((message, index) => {
             const isLast = index === messages.length - 1;
             return (
@@ -273,9 +275,9 @@ export function ChatMessagesView({
                     <AiMessageBubble
                       message={message}
                       historicalActivity={historicalActivities[message.id!]}
-                      liveActivity={liveActivityEvents} // Pass global live events
+                      liveActivity={liveActivityEvents}
                       isLastMessage={isLast}
-                      isOverallLoading={isLoading} // Pass global loading state
+                      isOverallLoading={isLoading}
                       mdComponents={mdComponents}
                       handleCopy={handleCopy}
                       copiedMessageId={copiedMessageId}
@@ -289,8 +291,6 @@ export function ChatMessagesView({
             (messages.length === 0 ||
               messages[messages.length - 1].type === "human") && (
               <div className="flex items-start gap-3 mt-3">
-                {" "}
-                {/* AI message row structure */}
                 <div className="relative group max-w-[85%] md:max-w-[80%] rounded-xl p-3 shadow-sm break-words bg-neutral-800 text-neutral-100 rounded-bl-none w-full min-h-[56px]">
                   {liveActivityEvents.length > 0 ? (
                     <div className="text-xs">
@@ -309,7 +309,7 @@ export function ChatMessagesView({
               </div>
             )}
         </div>
-      </ScrollArea>
+      </div>
       <InputForm
         onSubmit={onSubmit}
         isLoading={isLoading}
