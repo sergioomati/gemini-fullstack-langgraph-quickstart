@@ -14,6 +14,10 @@ export default function App() {
   >({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const hasFinalizeEventOccurredRef = useRef(false);
+  
+  // Global state for form configurations
+  const [effort, setEffort] = useState("medium");
+  const [model, setModel] = useState("google/gemini-2.5-pro-preview");
 
 
   const thread = useStream<{
@@ -185,13 +189,20 @@ export default function App() {
   }, [thread.messages, thread.isLoading, processedEventsTimeline]);
 
   const handleSubmit = useCallback(
-    (submittedInputValue: string, effort: string, model: string) => {
+    (submittedInputValue: string, newEffort?: string, newModel?: string) => {
       if (!submittedInputValue.trim()) return;
+      
+      // Update global state if new values are provided
+      const currentEffort = newEffort || effort;
+      const currentModel = newModel || model;
+      
+      if (newEffort && newEffort !== effort) setEffort(newEffort);
+      if (newModel && newModel !== model) setModel(newModel);
       
       console.log("Submitting new query:", {
         input: submittedInputValue,
-        effort,
-        model,
+        effort: currentEffort,
+        model: currentModel,
         currentMessagesLength: thread.messages?.length || 0
       });
       
@@ -204,7 +215,7 @@ export default function App() {
       // high means max 10 loops and 5 queries
       let initial_search_query_count = 0;
       let max_research_loops = 0;
-      switch (effort) {
+      switch (currentEffort) {
         case "low":
           initial_search_query_count = 1;
           max_research_loops = 1;
@@ -231,23 +242,30 @@ export default function App() {
         messagesLength: newMessages.length,
         initial_search_query_count,
         max_research_loops,
-        reasoning_model: model,
+        reasoning_model: currentModel,
       });
 
       thread.submit({
         messages: newMessages,
         initial_search_query_count: initial_search_query_count,
         max_research_loops: max_research_loops,
-        reasoning_model: model,
+        reasoning_model: currentModel,
       });
     },
-    [thread]
+    [thread, effort, model]
   );
 
   const handleCancel = useCallback(() => {
     thread.stop();
     window.location.reload();
   }, [thread]);
+
+  const handleNewSearch = useCallback(() => {
+    // Optionally reset configurations to defaults
+    setEffort("medium");
+    setModel("google/gemini-2.5-pro-preview");
+    window.location.reload();
+  }, []);
 
   return (
     <div className="flex h-screen bg-neutral-800 text-neutral-100 font-sans antialiased">
@@ -264,6 +282,10 @@ export default function App() {
               handleSubmit={handleSubmit}
               isLoading={thread.isLoading}
               onCancel={handleCancel}
+              effort={effort}
+              model={model}
+              setEffort={setEffort}
+              setModel={setModel}
             />
           ) : (
             <ChatMessagesView
@@ -274,6 +296,11 @@ export default function App() {
               onCancel={handleCancel}
               liveActivityEvents={processedEventsTimeline}
               historicalActivities={historicalActivities}
+              effort={effort}
+              model={model}
+              setEffort={setEffort}
+              setModel={setModel}
+              onNewSearch={handleNewSearch}
             />
           )}
         </div>

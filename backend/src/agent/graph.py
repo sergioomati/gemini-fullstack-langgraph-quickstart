@@ -1,8 +1,10 @@
 import os
+import requests
+import json
 
 from agent.tools_and_schemas import SearchQueryList, Reflection
 from dotenv import load_dotenv
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Send
 from langgraph.graph import StateGraph
 from langgraph.graph import START, END
@@ -36,8 +38,132 @@ load_dotenv()
 if os.getenv("GEMINI_API_KEY") is None:
     raise ValueError("GEMINI_API_KEY is not set")
 
+# Check for OpenRouter API key if we're using OpenRouter models
+def check_openrouter_requirements():
+    """Check if OpenRouter API key is set when needed."""
+    if os.getenv("OPENROUTER_API_KEY") is None:
+        print("WARNING: OPENROUTER_API_KEY is not set. OpenRouter models (DeepSeek, GPT-4, etc.) will not work.")
+        print("Please add OPENROUTER_API_KEY to your .env file to use non-Gemini models.")
+
+# Run the check on import
+check_openrouter_requirements()
+
 # Used for Google Search API
 genai_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+
+def is_openrouter_model(model: str) -> bool:
+    """Check if the model should use OpenRouter API."""
+    openrouter_prefixes = ["deepseek/", "qwen/", "openai/", "google/"]
+    return any(model.startswith(prefix) for prefix in openrouter_prefixes)
+
+
+def call_openrouter_model(model: str, messages: list, temperature: float = 0.0) -> str:
+    """Call OpenRouter API with the given model and messages."""
+    try:
+        # Convert LangChain message format to OpenRouter format
+        openrouter_messages = []
+        for msg in messages:
+            if isinstance(msg, HumanMessage):
+                openrouter_messages.append({"role": "user", "content": msg.content})
+            elif isinstance(msg, AIMessage):
+                openrouter_messages.append({"role": "assistant", "content": msg.content})
+            else:
+                # For string messages, assume they're user messages
+                openrouter_messages.append({"role": "user", "content": str(msg)})
+        
+        response = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": os.getenv("YOUR_SITE_URL", "http://localhost:2024"),
+                "X-Title": os.getenv("YOUR_SITE_NAME", "LangGraph Research Agent"),
+            },
+            data=json.dumps({
+                "model": model,
+                "messages": openrouter_messages,
+                "temperature": temperature,
+            })
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
+        else:
+            raise Exception(f"OpenRouter API error: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        raise Exception(f"Error calling OpenRouter API: {str(e)}")
+
+
+def call_model_with_structured_output(model: str, prompt: str, schema_class, temperature: float = 1.0):
+    """Call model (Gemini or OpenRouter) and return structured output."""
+    if is_openrouter_model(model):
+        # For OpenRouter models, we'll need to parse the JSON manually
+        enhanced_prompt = f"""
+{prompt}
+
+Please respond with a valid JSON object that matches this schema:
+{schema_class.model_json_schema()}
+
+Return ONLY the JSON object, no additional text.
+"""
+        
+        response_text = call_openrouter_model(model, [enhanced_prompt], temperature)
+        
+        # Try to extract JSON from the response
+        try:
+            # Remove any markdown formatting
+            cleaned_response = response_text.strip()
+            if cleaned_response.startswith("```json"):
+                cleaned_response = cleaned_response.replace("```json", "").replace("```", "").strip()
+            elif cleaned_response.startswith("```"):
+                cleaned_response = cleaned_response.replace("```", "").strip()
+            
+            # Parse JSON
+            parsed_json = json.loads(cleaned_response)
+            return schema_class(**parsed_json)
+        except (json.JSONDecodeError, Exception) as e:
+            # Fallback: try to extract meaningful data
+            if schema_class == Reflection:
+                # For reflection, create a basic response
+                return Reflection(
+                    is_sufficient=False,
+                    knowledge_gap="Unable to parse structured response",
+                    follow_up_queries=["Need more information"]
+                )
+            elif schema_class == SearchQueryList:
+                # For search queries, create a basic response
+                return SearchQueryList(query=["search query"])
+            else:
+                raise Exception(f"Failed to parse structured output: {str(e)}")
+    else:
+        # Use original Gemini approach
+        llm = ChatGoogleGenerativeAI(
+            model=model,
+            temperature=temperature,
+            max_retries=2,
+            api_key=os.getenv("GEMINI_API_KEY"),
+        )
+        structured_llm = llm.with_structured_output(schema_class)
+        return structured_llm.invoke(prompt)
+
+
+def call_model_simple(model: str, prompt: str, temperature: float = 0.0) -> str:
+    """Call model (Gemini or OpenRouter) and return simple text response."""
+    if is_openrouter_model(model):
+        return call_openrouter_model(model, [prompt], temperature)
+    else:
+        # Use original Gemini approach
+        llm = ChatGoogleGenerativeAI(
+            model=model,
+            temperature=temperature,
+            max_retries=2,
+            api_key=os.getenv("GEMINI_API_KEY"),
+        )
+        result = llm.invoke(prompt)
+        return result.content
 
 
 # Nodes
@@ -162,14 +288,14 @@ def reflection(state: OverallState, config: RunnableConfig) -> ReflectionState:
         research_topic=get_research_topic(state["messages"]),
         summaries="\n\n---\n\n".join(state["web_research_result"]),
     )
-    # init Reasoning Model
-    llm = ChatGoogleGenerativeAI(
+    
+    # Use the new unified model calling function
+    result = call_model_with_structured_output(
         model=reasoning_model,
-        temperature=1.0,
-        max_retries=2,
-        api_key=os.getenv("GEMINI_API_KEY"),
+        prompt=formatted_prompt,
+        schema_class=Reflection,
+        temperature=1.0
     )
-    result = llm.with_structured_output(Reflection).invoke(formatted_prompt)
 
     return {
         "is_sufficient": result.is_sufficient,
@@ -231,33 +357,70 @@ def finalize_answer(state: OverallState, config: RunnableConfig):
         Dictionary with state update, including running_summary key containing the formatted final summary with sources
     """
     configurable = Configuration.from_runnable_config(config)
-    reasoning_model = state.get("reasoning_model") or configurable.reasoning_model
+    reasoning_model = state.get("reasoning_model") or configurable.answer_model
 
-    # Format the prompt
+    # Format the prompt - Include sources information for better context
     current_date = get_current_date()
+    
+    # Add source information to the prompt for better context
+    sources_context = ""
+    if state.get("sources_gathered"):
+        sources_context = "\n\nAvailable sources to reference:\n"
+        for i, source in enumerate(state["sources_gathered"][:10]):  # Limit to top 10 sources
+            sources_context += f"[{i+1}] {source.get('title', 'Source')} - {source.get('short_url', source.get('value', ''))}\n"
+        sources_context += "\nPlease reference these sources in your answer using the format [title](url) where appropriate.\n"
+    
     formatted_prompt = answer_instructions.format(
         current_date=current_date,
         research_topic=get_research_topic(state["messages"]),
-        summaries="\n---\n\n".join(state["web_research_result"]),
+        summaries="\n---\n\n".join(state["web_research_result"]) + sources_context,
     )
 
-    # init Reasoning Model, default to Gemini 2.5 Flash
-    llm = ChatGoogleGenerativeAI(
+    # Use the new unified model calling function
+    result_content = call_model_simple(
         model=reasoning_model,
-        temperature=0,
-        max_retries=2,
-        api_key=os.getenv("GEMINI_API_KEY"),
+        prompt=formatted_prompt,
+        temperature=0.0
     )
-    result = llm.invoke(formatted_prompt)
+    
+    # Ensure we have valid content before proceeding
+    if not result_content or not result_content.strip():
+        result_content = "I apologize, but I encountered an issue generating the response. Please try again."
+    
+    # Create an AIMessage with the result
+    result = AIMessage(content=result_content)
 
     # Replace the short urls with the original urls and add all used urls to the sources_gathered
     unique_sources = []
-    for source in state["sources_gathered"]:
-        if source["short_url"] in result.content:
-            result.content = result.content.replace(
-                source["short_url"], source["value"]
-            )
-            unique_sources.append(source)
+    if state.get("sources_gathered"):
+        for source in state["sources_gathered"]:
+            # Check if the source URL appears in the result (both short and original)
+            short_url = source.get("short_url", "")
+            original_url = source.get("value", "")
+            
+            if short_url and short_url in result.content:
+                result.content = result.content.replace(short_url, original_url)
+                unique_sources.append(source)
+            elif original_url and original_url in result.content:
+                unique_sources.append(source)
+            # Also check if source title/label is referenced
+            elif source.get("label") and f"[{source.get('label')}]" in result.content:
+                unique_sources.append(source)
+
+    # If no sources were found in the content but we have sources, append them at the end
+    if not unique_sources and state.get("sources_gathered"):
+        # Take the first few sources as they're likely most relevant
+        unique_sources = state["sources_gathered"][:5]
+        
+        # Add a sources section if the response doesn't already include sources
+        if not any(marker in result.content.lower() for marker in ["source", "reference", "[", "http"]):
+            sources_text = "\n\n**Sources:**\n"
+            for i, source in enumerate(unique_sources, 1):
+                title = source.get("label", source.get("title", f"Source {i}"))
+                url = source.get("value", source.get("short_url", ""))
+                if url:
+                    sources_text += f"{i}. [{title}]({url})\n"
+            result.content += sources_text
 
     return {
         "messages": [AIMessage(content=result.content)],

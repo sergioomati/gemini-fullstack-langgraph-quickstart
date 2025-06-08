@@ -185,6 +185,38 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
     isLastMessage && isOverallLoading ? liveActivity : historicalActivity;
   const isLiveActivityForThisBubble = isLastMessage && isOverallLoading;
 
+  // Check if message has valid content to display
+  const messageContent = typeof message.content === "string" 
+    ? message.content 
+    : JSON.stringify(message.content);
+  const hasValidContent = messageContent && messageContent.trim().length > 0;
+
+  // If it's the last message and still loading, and no valid content, show activity timeline only
+  if (isLastMessage && isOverallLoading && !hasValidContent) {
+    return (
+      <div className={`relative break-words flex flex-col bg-neutral-800 text-neutral-100 rounded-xl p-3 max-w-[85%] md:max-w-[80%] w-full min-h-[56px]`}>
+        {activityForThisBubble && activityForThisBubble.length > 0 ? (
+          <div className="text-xs">
+            <ActivityTimeline
+              processedEvents={activityForThisBubble}
+              isLoading={true}
+            />
+          </div>
+        ) : (
+          <div className="flex items-center justify-start h-full">
+            <Loader2 className="h-5 w-5 animate-spin text-neutral-400 mr-2" />
+            <span>Processing...</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Don't render anything if there's no valid content and not loading
+  if (!hasValidContent) {
+    return null;
+  }
+
   return (
     <div className={`relative break-words flex flex-col`}>
       {activityForThisBubble && activityForThisBubble.length > 0 && (
@@ -196,21 +228,12 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
         </div>
       )}
       <ReactMarkdown components={mdComponents}>
-        {typeof message.content === "string"
-          ? message.content
-          : JSON.stringify(message.content)}
+        {messageContent}
       </ReactMarkdown>
       <Button
         variant="default"
-        className="cursor-pointer bg-neutral-700 border-neutral-600 text-neutral-300 self-end"
-        onClick={() =>
-          handleCopy(
-            typeof message.content === "string"
-              ? message.content
-              : JSON.stringify(message.content),
-            message.id!
-          )
-        }
+        className="cursor-pointer bg-neutral-700 border-neutral-600 text-neutral-300 self-end mt-2"
+        onClick={() => handleCopy(messageContent, message.id!)}
       >
         {copiedMessageId === message.id ? "Copied" : "Copy"}
         {copiedMessageId === message.id ? <CopyCheck /> : <Copy />}
@@ -223,10 +246,15 @@ interface ChatMessagesViewProps {
   messages: Message[];
   isLoading: boolean;
   scrollAreaRef: React.RefObject<HTMLDivElement | null>;
-  onSubmit: (inputValue: string, effort: string, model: string) => void;
+  onSubmit: (inputValue: string, effort?: string, model?: string) => void;
   onCancel: () => void;
   liveActivityEvents: ProcessedEvent[];
   historicalActivities: Record<string, ProcessedEvent[]>;
+  effort: string;
+  model: string;
+  setEffort: (effort: string) => void;
+  setModel: (model: string) => void;
+  onNewSearch: () => void;
 }
 
 export function ChatMessagesView({
@@ -237,6 +265,11 @@ export function ChatMessagesView({
   onCancel,
   liveActivityEvents,
   historicalActivities,
+  effort,
+  model,
+  setEffort,
+  setModel,
+  onNewSearch,
 }: ChatMessagesViewProps) {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
@@ -289,7 +322,7 @@ export function ChatMessagesView({
           })}
           {isLoading &&
             (messages.length === 0 ||
-              messages[messages.length - 1].type === "human") && (
+              (messages.length > 0 && messages[messages.length - 1].type === "human")) && (
               <div className="flex items-start gap-3 mt-3">
                 <div className="relative group max-w-[85%] md:max-w-[80%] rounded-xl p-3 shadow-sm break-words bg-neutral-800 text-neutral-100 rounded-bl-none w-full min-h-[56px]">
                   {liveActivityEvents.length > 0 ? (
@@ -315,6 +348,11 @@ export function ChatMessagesView({
         isLoading={isLoading}
         onCancel={onCancel}
         hasHistory={messages.length > 0}
+        effort={effort}
+        model={model}
+        setEffort={setEffort}
+        setModel={setModel}
+        onNewSearch={onNewSearch}
       />
     </div>
   );

@@ -12,10 +12,15 @@ import {
 
 // Updated InputFormProps
 interface InputFormProps {
-  onSubmit: (inputValue: string, effort: string, model: string) => void;
+  onSubmit: (inputValue: string, effort?: string, model?: string) => void;
   onCancel: () => void;
   isLoading: boolean;
   hasHistory: boolean;
+  effort: string;
+  model: string;
+  setEffort: (effort: string) => void;
+  setModel: (model: string) => void;
+  onNewSearch?: () => void;
 }
 
 export const InputForm: React.FC<InputFormProps> = ({
@@ -23,10 +28,13 @@ export const InputForm: React.FC<InputFormProps> = ({
   onCancel,
   isLoading,
   hasHistory,
+  effort,
+  model,
+  setEffort,
+  setModel,
+  onNewSearch,
 }) => {
   const [internalInputValue, setInternalInputValue] = useState("");
-  const [effort, setEffort] = useState("medium");
-  const [model, setModel] = useState("gemini-2.5-flash-preview-04-17");
 
   const handleInternalSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -137,27 +145,43 @@ export const InputForm: React.FC<InputFormProps> = ({
               </SelectTrigger>
               <SelectContent className="bg-neutral-700 border-neutral-600 text-neutral-300 cursor-pointer">
                 <SelectItem
-                  value="gemini-2.0-flash"
+                  value="google/gemini-2.5-pro-preview"
                   className="hover:bg-neutral-600 focus:bg-neutral-600 cursor-pointer"
                 >
                   <div className="flex items-center">
-                    <Zap className="h-4 w-4 mr-2 text-yellow-400" /> 2.0 Flash
+                    <Cpu className="h-4 w-4 mr-2 text-purple-400" /> Gemini 2.5 Pro
                   </div>
                 </SelectItem>
                 <SelectItem
-                  value="gemini-2.5-flash-preview-04-17"
+                  value="deepseek/deepseek-r1-0528"
                   className="hover:bg-neutral-600 focus:bg-neutral-600 cursor-pointer"
                 >
                   <div className="flex items-center">
-                    <Zap className="h-4 w-4 mr-2 text-orange-400" /> 2.5 Flash
+                    <Brain className="h-4 w-4 mr-2 text-blue-400" /> DeepSeek R1
                   </div>
                 </SelectItem>
                 <SelectItem
-                  value="gemini-2.5-pro-preview-05-06"
+                  value="deepseek/deepseek-r1-0528-qwen3-8b"
                   className="hover:bg-neutral-600 focus:bg-neutral-600 cursor-pointer"
                 >
                   <div className="flex items-center">
-                    <Cpu className="h-4 w-4 mr-2 text-purple-400" /> 2.5 Pro
+                    <Brain className="h-4 w-4 mr-2 text-cyan-400" /> DeepSeek R1 Qwen3
+                  </div>
+                </SelectItem>
+                <SelectItem
+                  value="qwen/qwen3-235b-a22b"
+                  className="hover:bg-neutral-600 focus:bg-neutral-600 cursor-pointer"
+                >
+                  <div className="flex items-center">
+                    <Zap className="h-4 w-4 mr-2 text-green-400" /> Qwen3 235B
+                  </div>
+                </SelectItem>
+                <SelectItem
+                  value="openai/gpt-4.1"
+                  className="hover:bg-neutral-600 focus:bg-neutral-600 cursor-pointer"
+                >
+                  <div className="flex items-center">
+                    <Cpu className="h-4 w-4 mr-2 text-emerald-400" /> GPT-4.1
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -168,7 +192,7 @@ export const InputForm: React.FC<InputFormProps> = ({
           <Button
             className="bg-neutral-700 border-neutral-600 text-neutral-300 cursor-pointer rounded-xl rounded-t-sm pl-2 "
             variant="default"
-            onClick={() => window.location.reload()}
+            onClick={onNewSearch || (() => window.location.reload())}
           >
             <SquarePen size={16} />
             New Search

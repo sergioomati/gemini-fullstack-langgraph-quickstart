@@ -3,17 +3,25 @@ import { InputForm } from "./InputForm";
 interface WelcomeScreenProps {
   handleSubmit: (
     submittedInputValue: string,
-    effort: string,
-    model: string
+    effort?: string,
+    model?: string
   ) => void;
   onCancel: () => void;
   isLoading: boolean;
+  effort: string;
+  model: string;
+  setEffort: (effort: string) => void;
+  setModel: (model: string) => void;
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   handleSubmit,
   onCancel,
   isLoading,
+  effort,
+  model,
+  setEffort,
+  setModel,
 }) => (
   <div className="flex flex-col items-center justify-center text-center px-4 flex-1 w-full max-w-3xl mx-auto gap-4">
     <div>
@@ -30,6 +38,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         isLoading={isLoading}
         onCancel={onCancel}
         hasHistory={false}
+        effort={effort}
+        model={model}
+        setEffort={setEffort}
+        setModel={setModel}
       />
     </div>
     <p className="text-xs text-neutral-500">
